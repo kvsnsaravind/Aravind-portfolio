@@ -1,20 +1,23 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
 
-# Run and deploy your AI Studio app
+# Aravind Kollipara Portfolio and Chatbot
 
-This contains everything you need to run your app locally.
+This repository hosts Aravind Kollipara's personal portfolio site, including a chatbot that answers questions specifically about Aravind.
 
-View your app in AI Studio: https://ai.studio/apps/ddc6c7b3-55d4-4835-b9c5-68e9ee995791
+The app showcases Aravind's projects, resume, and profile, and the chatbot is designed to respond with information about Aravind's background, skills, experience, and work.
+
+## Features
+
+- Portfolio website with interactive sections
+- Chatbot that answers questions about Aravind
+- Local development with Vite and TypeScript
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Start the app:
    `npm run dev`
+
+Open the local server URL shown in the terminal to view the portfolio and interact with the chatbot.
