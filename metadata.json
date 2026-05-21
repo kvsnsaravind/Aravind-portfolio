@@ -1,0 +1,6 @@
+{
+  "name": "Aravind Kollipara Portfolio",
+  "description": "Full-stack React portfolio of Aravind Kollipara featuring a professional history, GitHub projects, and an interactive resume AI chatbot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
