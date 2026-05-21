@@ -175,34 +175,31 @@ Feel free to ask a question about any of these attributes!`;
 const app = express();
 export { app };
 
-async function startServer() {
-  const PORT = 3000;
+// Middleware for parsing JSON
+app.use(express.json());
 
-  // Middleware for parsing JSON
-  app.use(express.json());
+// Store contact messages in-memory for the demo session
+const contactMessages: any[] = [];
 
-  // Store contact messages in-memory for the demo session
-  const contactMessages: any[] = [];
+// --- API Routes ---
 
-  // --- API Routes ---
+// 1. Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
 
-  // 1. Health check endpoint
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
-  });
+// 2. Chatbot endpoint using @google/genai & gemini-3.5-flash
+app.post('/api/chat', async (req, res) => {
+  const { messages = [] } = req.body;
 
-  // 2. Chatbot endpoint using @google/genai & gemini-3.5-flash
-  app.post('/api/chat', async (req, res) => {
-    const { messages = [] } = req.body;
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'Messages are required and must be an array' });
+  }
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Messages are required and must be an array' });
-    }
-
-    // Format current local time and resume context as a powerful system instruction
-    const currentLocalTime = new Date().toISOString();
-    
-    const structuredResumeText = `
+  // Format current local time and resume context as a powerful system instruction
+  const currentLocalTime = new Date().toISOString();
+  
+  const structuredResumeText = `
 SYSTEM INSTRUCTION:
 You are "Aravind's Personal AI Recruiter Assistant", an interactive, professional chatbot built right into Venkata Siva Naga Sai Aravind Kollipara's personal portfolio. Your mission is to represent Aravind to potential employers, recruiters, and colleagues in the most professional, accurate, and helpful way possible, based exclusively on his official resume.
 
@@ -253,110 +250,113 @@ CORE INSTRUCTIONS FOR YOUR TONE & BEHAVIOR:
 6. Ground your context in 2026. Aravind is currently working as a Senior Member of Technical Staff at Oracle.
 `;
 
-    if (!ai) {
-      // Offline fallback if API key is not available
-      const replyText = getOfflineFallbackReply(messages, false);
-      return res.json({ reply: replyText });
-    }
+  if (!ai) {
+    // Offline fallback if API key is not available
+    const replyText = getOfflineFallbackReply(messages, false);
+    return res.json({ reply: replyText });
+  }
 
-    try {
-      // Build simple prompt from conversation list
-      const promptParts: string[] = [];
-      
-      // We pass the last 10 messages for simple context history
-      const formattedHistory = messages
-        .slice(-10)
-        .map((m: any) => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
-        .join('\n');
-      
-      const prompt = `Here is the conversation history so far. Respond to the last message from User as the Assistant. Provide only your response as Aravind's professional AI recruiter assistant:
-      
+  try {
+    // Build simple prompt from conversation list
+    const promptParts: string[] = [];
+    
+    // We pass the last 10 messages for simple context history
+    const formattedHistory = messages
+      .slice(-10)
+      .map((m: any) => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
+      .join('\n');
+    
+    const prompt = `Here is the conversation history so far. Respond to the last message from User as the Assistant. Provide only your response as Aravind's professional AI recruiter assistant:
+    
 ${formattedHistory}
 
 Assistant:`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: structuredResumeText,
-          temperature: 0.7,
-        },
-      });
-
-      const reply = response.text || "I was unable to formulate a response. Please try again.";
-      return res.json({ reply });
-
-    } catch (error: any) {
-      console.error("Gemini API Error in backend:", error);
-      
-      // Detect rate-limits or quota limits (usually Status 429) and fall back gracefully
-      const isQuotaOrLimit = error && (
-        error.status === 429 ||
-        error.statusCode === 429 ||
-        (error.message && (
-          error.message.includes('quota') ||
-          error.message.includes('Quota') ||
-          error.message.includes('limit') ||
-          error.message.includes('Resource Exhausted') ||
-          error.message.includes('RESOURCE_EXHAUSTED') ||
-          error.message.includes('429')
-        ))
-      );
-      
-      // Serve detailed context from our offline local intelligence engine instead of returning 500 error
-      const fallbackReply = getOfflineFallbackReply(messages, !!isQuotaOrLimit);
-      return res.json({ reply: fallbackReply });
-    }
-  });
-
-  // 3. GitHub API Proxy with fallback to local portfolio data
-  app.get('/api/github/repos', async (req, res) => {
-    try {
-      const response = await fetch('https://api.github.com/users/kvsnsaravind/repos?sort=updated&per_page=12', {
-        headers: {
-          'User-Agent': 'Aravind-Portfolio-App'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`GitHub API returned status ${response.status}`);
-      }
-      
-      const repos = await response.json();
-      return res.json(repos);
-    } catch (error: any) {
-      console.warn("GitHub API call failed. Returning empty list or custom fallbacks:", error.message);
-      // Return empty array so the client knows to use hardcoded key projects securely
-      return res.json([]);
-    }
-  });
-
-  // 4. Contact Form endpoint
-  app.post('/api/contact', (req, res) => {
-    const { name, email, subject, message } = req.body;
-
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: 'Name, email, and message are required fields' });
-    }
-
-    const newMessage = {
-      id: Math.random().toString(36).substring(7),
-      name,
-      email,
-      subject: subject || 'No Subject',
-      message,
-      timestamp: new Date().toISOString()
-    };
-
-    contactMessages.push(newMessage);
-    console.log(`[Contact Form Submission] Received message from ${name} (${email}): "${subject}" - "${message}"`);
-    
-    return res.json({ 
-      success: true, 
-      message: 'Your message has been captured successfully! Aravind will get in touch with you soon.' 
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: structuredResumeText,
+        temperature: 0.7,
+      },
     });
+
+    const reply = response.text || "I was unable to formulate a response. Please try again.";
+    return res.json({ reply });
+
+  } catch (error: any) {
+    console.error("Gemini API Error in backend:", error);
+    
+    // Detect rate-limits or quota limits (usually Status 429) and fall back gracefully
+    const isQuotaOrLimit = error && (
+      error.status === 429 ||
+      error.statusCode === 429 ||
+      (error.message && (
+        error.message.includes('quota') ||
+        error.message.includes('Quota') ||
+        error.message.includes('limit') ||
+        error.message.includes('Resource Exhausted') ||
+        error.message.includes('RESOURCE_EXHAUSTED') ||
+        error.message.includes('429')
+      ))
+    );
+    
+    // Serve detailed context from our offline local intelligence engine instead of returning 500 error
+    const fallbackReply = getOfflineFallbackReply(messages, !!isQuotaOrLimit);
+    return res.json({ reply: fallbackReply });
+  }
+});
+
+// 3. GitHub API Proxy with fallback to local portfolio data
+app.get('/api/github/repos', async (req, res) => {
+  try {
+    const response = await fetch('https://api.github.com/users/kvsnsaravind/repos?sort=updated&per_page=12', {
+      headers: {
+        'User-Agent': 'Aravind-Portfolio-App'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`GitHub API returned status ${response.status}`);
+    }
+    
+    const repos = await response.json();
+    return res.json(repos);
+  } catch (error: any) {
+    console.warn("GitHub API call failed. Returning empty list or custom fallbacks:", error.message);
+    // Return empty array so the client knows to use hardcoded key projects securely
+    return res.json([]);
+  }
+});
+
+// 4. Contact Form endpoint
+app.post('/api/contact', (req, res) => {
+  const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !message) {
+    return res.status(400).json({ error: 'Name, email, and message are required fields' });
+  }
+
+  const newMessage = {
+    id: Math.random().toString(36).substring(7),
+    name,
+    email,
+    subject: subject || 'No Subject',
+    message,
+    timestamp: new Date().toISOString()
+  };
+
+  contactMessages.push(newMessage);
+  console.log(`[Contact Form Submission] Received message from ${name} (${email}): "${subject}" - "${message}"`);
+  
+  return res.json({ 
+    success: true, 
+    message: 'Your message has been captured successfully! Aravind will get in touch with you soon.' 
   });
+});
+
+async function startServer() {
+  const PORT = 3000;
 
   // --- Serve Frontend Application ---
 
